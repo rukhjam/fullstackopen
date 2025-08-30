@@ -212,7 +212,7 @@ const Button = (props) => (
 )
 ```
 
-- The component gets the event handler function from the `onClic`k prop, and the text of the button from the `text` prop. The above `Button` component can be used as follows:
+- The component gets the event handler function from the `onClick` prop, and the text of the button from the `text` prop. The above `Button` component can be used as follows:
 
 ```javascript
 const App = (props) => {
@@ -220,7 +220,8 @@ const App = (props) => {
   return (
     <div>
       {value}
-      <Button onClick={() => setToValue(1000)} text="thousand" />      <Button onClick={() => setToValue(0)} text="reset" />      
+      <Button onClick={() => setToValue(1000)} text="thousand" />      
+      <Button onClick={() => setToValue(0)} text="reset" />      
       <Button onClick={() => setToValue(value + 1)} text="increment" />  
     </div>
   )
@@ -254,3 +255,256 @@ const App = (props) => {
 #### Refactoring Modules
 - In smaller applications, components are usually placed in a directory called `components`, which is in turn placed within the `src` directory. The convention is to name the file after the component.
 - The component can be imported into `App.jsx` like `import Note from './components/Note'` where `Note.jsx` is created in `components` directory.
+
+### 2-b Forms
+- Form can be used to submit data to server. To access data in the form input element, we need to use the controlled component (whose state is managed by the React App itself):
+```jsx
+
+const addNote = (event) => {
+  event.preventDefault()
+  const noteObject = {
+    content: newNote,
+    important: Math.random() < 0.5,
+    id: String(notes.length + 1)
+  }
+  setNotes(notes.concat(noteObject))
+  setNewNote('')
+}
+
+const handleNoteChange = (event) => {    
+  setNewNote(event.target.value)  
+}
+
+<form onSubmit={addNote}>
+  <input value={newNote} onChange={handleNoteChange}/>
+  <button type="submit">save</button>
+</form>   
+```
+- The form event handler (`addNote` in this case) immediately calls the `event.preventDefault()` method, which prevents the default action of submitting a form. 
+- The `target` property of the event object now corresponds to the controlled input element, and `event.target.value` refers to the input value of that element.
+
+### 2-c Getting data from server
+
+#### [json-server](https://github.com/typicode/json-server)
+- Install *json-server* as dev-dependency like `npm install json-server --save-dev` at the root of project directory.
+- Create JSON file which has arrays of objects (`"notes"` in this example) and save it as `db.json` in the root of the project directory. To serve it from mock server, make use of `json-server`. Use `npx json-server --port 3001 db.json` to start the server at port `3001`. Use `http://localhost:3001/notes` to access all notes served as `application/json` content-type.
+- You can also add `"server": "json-server -p 3001 db.json"` in the *package.json* file to start the *json-server* using `npm run server` similar to starting react application using `npm run dev`.
+
+#### Axios and promises
+- To retrieve data from server, install *axios* like `npm install axios` at the root of the project directory to save it within `"dependencies"` in *package.json* file.
+- Import axios `import axios from 'axios'` and use it like `axios.get('http://localhost:3001/notes')` which would return Javascript *Promise* object. 
+
+> A Promise is an object representing the eventual completion or failure of an asynchronous operation.
+
+- A promise can have three distinct states:
+  - The promise is *pending*: It means that the asynchronous operation corresponding to the promise has not yet finished and the final value is not available yet.
+  - The promise is *fulfilled*: It means that the operation has been completed and the final value is available, which generally is a successful operation.
+  - The promise is *rejected*: It means that an error prevented the final value from being determined, which generally represents a failed operation.
+
+- The sample usage of successful GET request via axios:
+```javascript
+const promise = axios.get('http://localhost:3001/notes')
+
+promise.then(response => {
+  console.log(response)
+})
+```
+- The `response` object contains all the essential data related to the response of an HTTP GET request, which would include the returned *data*, *status code*, and *headers*.
+
+#### Effect-hooks
+```jsx
+const hook = () => {
+  console.log('effect')
+  axios
+    .get('http://localhost:3001/notes')
+    .then(response => {
+      console.log('promise fulfilled')
+      setNotes(response.data)
+    })
+}
+
+useEffect(hook, [])
+```
+> By default, effects run after every completed render, but you can choose to fire it only when certain values have changed.
+
+### 2-d Altering data in server
+#### Sending data to the server
+- Use the POST method on `axios` object to send data to the server which returned the new object within `response.data` once the promise is fulfilled:
+```javascript
+axios.post('http://localhost:3001/notes', noteObject)
+    .then(response => {
+      setNotes(notes.concat(response.data))      
+      setNewNote('')
+    })
+```
+- Use of PUT method on `axios` object to alter object on server with specific id:
+```javascript
+const toggleImportanceOf = id => {
+  const url = `http://localhost:3001/notes/${id}`
+  const note = notes.find(n => n.id === id)
+  const changedNote = { ...note, important: !note.important }
+
+  axios.put(url, changedNote).then(response => {
+    setNotes(notes.map(note => note.id === id ? response.data : note))
+  })
+}
+```
+- The `changedNote` in the above code is the shallow copy of the original `note` object we are looking to modify. We must never mutate state directly in React.
+- The map method creates a new array by mapping every item from the old array into an item in the new array.
+
+
+#### Extracting Communication with the Backend into a Separate Module
+- Create `notes.js` within `services` directory within `src` folder with following contents to add the code for communicating with backend server; it returns promise directly or after resolving it like shown below:
+```javascript
+import axios from 'axios'
+const baseUrl = 'http://localhost:3001/notes'
+
+const getAll = () => {
+  //   return axios.get(baseUrl)
+  const request = axios.get(baseUrl)
+  return request.then(response => response.data)
+}
+
+const create = newObject => {
+  //   return axios.post(baseUrl, newObject)
+  const request = axios.post(baseUrl, newObject)
+  return request.then(response => response.data)
+}
+
+const update = (id, newObject) => {
+  //   return axios.put(`${baseUrl}/${id}`, newObject)
+  const request = axios.put(`${baseUrl}/${id}`, newObject)
+  return request.then(response => response.data)
+}
+
+export default { 
+  getAll: getAll, 
+  create: create, 
+  update: update 
+}
+```
+- It can be imported like `import noteService from './services/notes'` in `App.jsx` to make use of `getAll`, `create` and `update` methods.
+
+
+#### Cleaner Syntax for Defining Object Literals
+- The above export can be shortened to `export default { getAll, create, update }` considering keys (on left) are same as values (on right) of methods in object. 
+- To define an object `person` based on below data:
+```javascript
+const name = 'Leevi'
+const age = 0
+```
+- The older Javascript syntax is like as follows:
+```javascript
+const person = {
+  name: name,
+  age: age
+}
+```
+- The new ES6 syntax, it can be written as follows:
+```javascript
+const person = { name, age }
+```
+
+#### Promises and Errors
+- The rejection of a promise is handled by providing the `then` method with a second callback function, which is called in the situation where the promise is rejected.
+- The more common way of adding a handler for rejected promises is to use the `catch` method.
+- In practice, the error handler for rejected promises is defined like this:
+```javascript
+axios
+  .get('http://example.com/probably_will_fail')
+  .then(response => {
+    console.log('success!')
+  })
+  .catch(error => {
+    console.log('fail')
+  })
+```
+- The `catch` method can be used to define a handler function at the end of a promise chain, which is called once any promise in the chain throws an error and the promise becomes *rejected*:
+```javascript
+axios
+  .get('http://...')
+  .then(response => response.data)
+  .then(data => {
+    // ...
+  })
+  .catch(error => {
+    console.log('fail')
+  })
+```
+
+### 2-e Adding styles to React app
+- One possible way to add CSS styles to React app is by defining stylesheet file (for example, `index.css` in the `src` directory) and import it like `import './index.css'`
+- In regular HTML, classes are defined as the value of the `class` attribute like `<li class="note">some text...</li>`
+- In React, use `className` attribute like `<li className='note'>...</li>`
+- It is also possible to define inline styles; however, the CSS content would be defined as object:
+```javascript
+{
+  color: 'green',
+  fontStyle: 'italic'
+}
+```
+- In CSS, selector and declaration of above would be as follows:
+```css
+{
+  color: green;
+  font-style: italic;
+}
+```
+- Example React component with inline style
+```jsx
+const Footer = () => {
+  const footerStyle = {
+    color: 'green',
+    fontStyle: 'italic'
+  }
+
+  return (
+    <div style={footerStyle}>
+      <br />
+      <p>
+        Note app
+      </p>
+    </div>
+  )
+}
+
+export default Footer
+```
+- Inline styles come with certain limitations. For instance, so-called pseudo-classes can't be used straightforwardly.
+
+#### Important Remarks
+- By defining state with empty array (`const [notes, setNotes] = useState([])`), it is possible to perform *map* function; however, if it is set to `null` instead then there would be error if the value of state set by running `useEffect(hook, [])`. To avoid the issue if state is set as `null` initially, we can make use of conditional rendering like below:
+```jsx
+// do not render anything if notes is still null
+  if (!notes) {     
+    return null   
+}
+```
+- The second parameter of `useEffect` is used to specify how often the effect is run. The principle is that the effect is always executed after the first render of the component and when the value of the second parameter changes.
+- If the second parameter is an empty array `[]`, its content never changes and the effect is only run after the first render of the component. 
+- Example of `useEffect` which runs every time the particular state is changed:
+```jsx
+...
+const [currency, setCurrency] = useState(null)
+...
+useEffect(() => {
+    console.log('effect run, currency is now', currency)
+
+    // skip if currency is not defined
+    if (currency) {
+      console.log('fetching exchange rates...')
+      axios
+        .get(`https://open.er-api.com/v6/latest/${currency}`)
+        .then(response => {
+          setRates(response.data.rates)
+        })
+    }
+  }, [currency])
+
+  ...
+
+  const onSearch = (event) => {
+    event.preventDefault()
+    setCurrency(value)
+  }
+```
