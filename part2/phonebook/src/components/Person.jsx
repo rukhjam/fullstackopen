@@ -1,4 +1,3 @@
-// const Persons = ({ persons, filterString, deletePerson  }) => {
 const Person = ({ person, deletePerson }) => {
     return (
         <div>

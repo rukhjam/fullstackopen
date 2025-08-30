@@ -508,3 +508,14 @@ useEffect(() => {
     setCurrency(value)
   }
 ```
+- To set environment variable:
+```bash
+export VITE_SOME_KEY=54l41n3n4v41m34rv0 && npm run dev // For Linux/macOS Bash
+($env:VITE_SOME_KEY="54l41n3n4v41m34rv0") -and (npm run dev) // For Windows PowerShell
+set "VITE_SOME_KEY=54l41n3n4v41m34rv0" && npm run dev // For Windows cmd.exe
+```
+- And to use the environment variable:
+```javascript
+const api_key = import.meta.env.VITE_SOME_KEY
+// variable api_key now has the value set in startup
+```
